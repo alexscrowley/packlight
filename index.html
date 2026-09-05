@@ -6,7 +6,7 @@
 <title>Packlight — voice-first minimalist packing</title>
 <meta name="description" content="Talk your way to a lighter bag. Packlight builds a weather-aware, minimalist packing checklist you can check off by voice.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235ee0a0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 7.5V6a3 3 0 0 1 6 0v1.5'/%3E%3Crect x='5' y='7.5' width='14' height='13.5' rx='4'/%3E%3Cpath d='M5 12.5h14'/%3E%3Crect x='9.2' y='14.5' width='5.6' height='3.6' rx='1.4'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="style.css?v=4">
+<link rel="stylesheet" href="style.css?v=5">
 </head>
 <body>
 <header>
@@ -39,6 +39,7 @@
       <input id="text-input" type="text" placeholder='or type: "Tokyo for 5 days"' autocomplete="off">
       <button id="send-btn" aria-label="Send">→</button>
     </div>
+    <pre id="debug" hidden></pre>
     <p id="mic-note" class="mic-note">Tap the mic once and just talk — it keeps listening until you tap it again. Typing works too.</p>
   </section>
 
@@ -50,11 +51,11 @@
 
 <footer>
   <p>Weather by <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> · Voice by the Web Speech API · No account, no keys, no tracking — your trip stays in your browser.</p>
-<p class="build">build 4 · Sep 4, 2026</p>
+<p class="build">build 5 · Sep 4, 2026</p>
 </footer>
 
-<script src="js/packing.js?v=4"></script>
-<script src="js/voice.js?v=4"></script>
-<script src="js/app.js?v=4"></script>
+<script src="js/packing.js?v=5"></script>
+<script src="js/voice.js?v=5"></script>
+<script src="js/app.js?v=5"></script>
 </body>
 </html>

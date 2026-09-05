@@ -65,6 +65,7 @@ main { flex: 1; width: 100%; max-width: 720px; margin: 0 auto; padding: 24px 20p
 }
 #send-btn:hover { border-color: var(--dim); }
 .mic-note { color: var(--dim); font-size: 12.5px; margin-top: 10px; }
+#debug { color: var(--warn); font: 11px/1.5 ui-monospace, monospace; margin-top: 10px; white-space: pre-wrap; }
 
 #tripbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
 .chip {
