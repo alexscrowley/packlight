@@ -370,6 +370,29 @@
   });
   V.onResult = t => handleInput(t);
   V.onInterim = t => { $('#user-line').textContent = '\u201c' + t + '\u2026\u201d'; };
+
+  /* ?debug mode: on-page recognition event log + one-time mic probe */
+  const DEBUG = new URLSearchParams(location.search).has('debug');
+  const debugEl = $('#debug');
+  function dbg(name, detail) {
+    if (!DEBUG) return;
+    const t = new Date().toTimeString().slice(0, 8);
+    debugEl.hidden = false;
+    debugEl.textContent += t + '  ' + name + (detail ? ': ' + detail : '') + '\n';
+    const lines = debugEl.textContent.trim().split('\n');
+    if (lines.length > 12) debugEl.textContent = lines.slice(-12).join('\n') + '\n';
+  }
+  if (DEBUG) {
+    V.onEvent = (name, detail) => dbg(name, detail);
+    let probed = false;
+    micBtn.addEventListener('click', () => {
+      if (probed || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+      probed = true;
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(st => { dbg('mic-probe', 'granted'); st.getTracks().forEach(t => t.stop()); })
+        .catch(e => dbg('mic-probe', 'DENIED: ' + e.name));
+    });
+  }
   V.onNoInput = () => {
     if (isMacSafariFn()) setNote('Not hearing anything yet. Check Safari menu \u2192 Settings for This Website \u2192 Microphone is Allow, and System Settings \u2192 Privacy & Security \u2192 Microphone has Safari on - then keep talking.');
     else setNote('Not hearing anything yet - check that your browser is allowed to use the microphone, then keep talking.');
