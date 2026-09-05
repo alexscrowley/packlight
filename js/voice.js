@@ -14,12 +14,15 @@
     isIOS,
     listening: false,
     handsFree: false,
-    onResult: null,      // (transcript) => {}
+    onResult: null,      // (transcript) => {} - final transcript
+    onInterim: null,     // (transcript) => {} - live partial transcript while speaking
+    onNoInput: null,     // () => {} - listening for a while with zero audio recognized
     onStateChange: null, // (listening:boolean) => {}
     onError: null,       // (code:string) => {}  codes: not-allowed, service-not-allowed, network, no-speech, audio-capture, constructor, start-failed, timeout
     enabled: true,
     _rec: null,
     _watchdog: null,
+    _noInputTimer: null,
 
     speak(text) {
       if (!synth || !this.enabled) return;
@@ -35,6 +38,7 @@
     stopSpeaking() { if (synth) synth.cancel(); },
 
     _clearWatchdog() { if (this._watchdog) { clearTimeout(this._watchdog); this._watchdog = null; } },
+    _clearNoInput() { if (this._noInputTimer) { clearTimeout(this._noInputTimer); this._noInputTimer = null; } },
 
     startListening() {
       if (!SR) return false;
@@ -44,26 +48,33 @@
       let rec;
       try { rec = new SR(); } catch (e) { this.onError && this.onError('constructor'); return false; }
       rec.lang = 'en-US';
-      rec.interimResults = false;
+      rec.interimResults = true;
       rec.maxAlternatives = 1;
       rec.continuous = false;
       this._rec = rec;
       rec.onstart = () => {
         this.listening = true;
         this.onStateChange && this.onStateChange(true);
+        // After 10s of zero recognized audio (not even an interim), warn instead
+        // of sitting silent - on macOS this usually means mic permission.
+        this._noInputTimer = setTimeout(() => {
+          if (this.listening) this.onNoInput && this.onNoInput();
+        }, 10000);
         // iOS Safari can hang silently: no result, no error, no end.
         this._watchdog = setTimeout(() => {
           if (this.listening) {
             try { rec.abort(); } catch (e) {}
             this.listening = false;
+            this._clearNoInput();
             this.onStateChange && this.onStateChange(false);
             if (this.handsFree && !isIOS) setTimeout(() => this.startListening(), 350);
             else { this.handsFree = false; this.onError && this.onError('timeout'); }
           }
-        }, 15000);
+        }, 20000);
       };
       rec.onend = () => {
         this._clearWatchdog();
+        this._clearNoInput();
         const wasHandsFree = this.handsFree;
         this.listening = false;
         this.onStateChange && this.onStateChange(false);
@@ -71,6 +82,7 @@
       };
       rec.onerror = (e) => {
         this._clearWatchdog();
+        this._clearNoInput();
         this.listening = false;
         this.onStateChange && this.onStateChange(false);
         const code = (e && e.error) || 'unknown';
@@ -78,8 +90,14 @@
         this.onError && this.onError(code);
       };
       rec.onresult = (ev) => {
+        this._clearNoInput();
+        const res = ev.results[ev.results.length - 1];
+        if (!res.isFinal) {
+          this.onInterim && this.onInterim(res[0].transcript);
+          return;
+        }
         this._clearWatchdog();
-        const t = ev.results[0][0].transcript;
+        const t = res[0].transcript;
         // Force a clean end - iOS stops delivering results without firing onend.
         try { rec.stop(); } catch (e) {}
         this.onResult && this.onResult(t);
@@ -95,6 +113,7 @@
       this._stopHandsFree = true;
       this.handsFree = false;
       this._clearWatchdog();
+      this._clearNoInput();
       if (this._rec) { try { this._rec.stop(); } catch (e) {} }
       this.listening = false;
       this.onStateChange && this.onStateChange(false);

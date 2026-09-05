@@ -346,7 +346,7 @@
   const NOTE_LISTENING = 'Listening… say where you\'re headed, or "check" plus an item while packing.';
   const ERROR_NOTES = {
     'not-allowed': 'The mic is blocked for this site. Allow it from the address-bar / browser settings, then tap the mic again — or just type, it does everything voice does.',
-    'service-not-allowed': 'This browser is blocking speech recognition. If you opened this inside another app, try opening it in Safari or Chrome directly — or just type.',
+    'service-not-allowed': 'SERVICE_NOT_ALLOWED',
     'network': 'The browser\'s speech service had a connection hiccup. Try again, or type.',
     'no-speech': 'Didn\'t catch anything. Tap the mic and try again, or type.',
     'audio-capture': 'No microphone found on this device. Typing works the same.',
@@ -369,14 +369,26 @@
     if (!V.startListening()) { V.handsFree = false; micBtn.classList.remove('live'); }
   });
   V.onResult = t => handleInput(t);
+  V.onInterim = t => { $('#user-line').textContent = '\u201c' + t + '\u2026\u201d'; };
+  V.onNoInput = () => {
+    if (isMacSafariFn()) setNote('Not hearing anything yet. Check Safari menu \u2192 Settings for This Website \u2192 Microphone is Allow, and System Settings \u2192 Privacy & Security \u2192 Microphone has Safari on - then keep talking.');
+    else setNote('Not hearing anything yet - check that your browser is allowed to use the microphone, then keep talking.');
+  };
   V.onStateChange = on => {
     micBtn.classList.toggle('listening', on);
     if (on) setNote(NOTE_LISTENING);
     else if (!V.handsFree) { micBtn.classList.remove('live'); setNote(NOTE_DEFAULT); }
   };
+  function isMacSafariFn() { return !V.isIOS && /^((?!chrome|chromium|android).)*safari/i.test(navigator.userAgent); }
   V.onError = code => {
     micBtn.classList.remove('live', 'listening');
-    setNote(ERROR_NOTES[code] || ERROR_NOTES.unknown);
+    let msg = ERROR_NOTES[code] || ERROR_NOTES.unknown;
+    if (code === 'service-not-allowed') {
+      msg = isMacSafariFn()
+        ? 'Safari needs two switches flipped for voice: System Settings → General → Keyboard → Dictation (on), and System Settings → Privacy & Security → Speech Recognition → Safari (on). Then reload. Chrome on this Mac also works out of the box.'
+        : 'This browser is blocking speech recognition. If you opened this inside another app, try opening it in Safari or Chrome directly — or just type.';
+    }
+    setNote(msg);
   };
 
   /* ---------- boot ---------- */
