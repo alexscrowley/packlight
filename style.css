@@ -48,6 +48,7 @@ main { flex: 1; width: 100%; max-width: 720px; margin: 0 auto; padding: 24px 20p
 #mic-btn:hover { border-color: var(--dim); }
 #mic-btn.live { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
 #mic-btn.listening { animation: pulse 1.6s ease-out infinite; }
+#mic-btn.disabled { opacity: 0.35; cursor: not-allowed; }
 @keyframes pulse {
   0% { box-shadow: 0 0 0 0 rgba(94, 224, 160, 0.45); }
   100% { box-shadow: 0 0 0 18px rgba(94, 224, 160, 0); }
