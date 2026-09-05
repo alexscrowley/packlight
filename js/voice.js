@@ -1,17 +1,25 @@
-/* Packlight voice layer — Web Speech API, no keys, no dependencies. */
+/* Packlight voice layer — Web Speech API, no keys, no dependencies.
+   iOS Safari quirks handled: fresh recognition per utterance, forced stop
+   after each result (Apple's recognizer stops delivering results without
+   firing onend otherwise), and every failure path reports an error code. */
 (function (root) {
   const SR = root.SpeechRecognition || root.webkitSpeechRecognition;
   const synth = root.speechSynthesis || null;
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
   const voice = {
     recognitionAvailable: !!SR,
     synthesisAvailable: !!synth,
+    isIOS,
     listening: false,
     handsFree: false,
-    _rec: null,
     onResult: null,      // (transcript) => {}
     onStateChange: null, // (listening:boolean) => {}
+    onError: null,       // (code:string) => {}  codes: not-allowed, service-not-allowed, network, no-speech, audio-capture, constructor, start-failed, timeout
     enabled: true,
+    _rec: null,
+    _watchdog: null,
 
     speak(text) {
       if (!synth || !this.enabled) return;
@@ -26,34 +34,67 @@
 
     stopSpeaking() { if (synth) synth.cancel(); },
 
+    _clearWatchdog() { if (this._watchdog) { clearTimeout(this._watchdog); this._watchdog = null; } },
+
     startListening() {
       if (!SR) return false;
       this.stopSpeaking();
-      if (this._rec) { try { this._rec.abort(); } catch (e) {} }
-      const rec = new SR();
+      this._clearWatchdog();
+      if (this._rec) { try { this._rec.abort(); } catch (e) {} this._rec = null; }
+      let rec;
+      try { rec = new SR(); } catch (e) { this.onError && this.onError('constructor'); return false; }
       rec.lang = 'en-US';
       rec.interimResults = false;
       rec.maxAlternatives = 1;
+      rec.continuous = false;
       this._rec = rec;
-      rec.onstart = () => { this.listening = true; this.onStateChange && this.onStateChange(true); };
+      rec.onstart = () => {
+        this.listening = true;
+        this.onStateChange && this.onStateChange(true);
+        // iOS Safari can hang silently: no result, no error, no end.
+        this._watchdog = setTimeout(() => {
+          if (this.listening) {
+            try { rec.abort(); } catch (e) {}
+            this.listening = false;
+            this.onStateChange && this.onStateChange(false);
+            if (this.handsFree && !isIOS) setTimeout(() => this.startListening(), 350);
+            else { this.handsFree = false; this.onError && this.onError('timeout'); }
+          }
+        }, 15000);
+      };
       rec.onend = () => {
-        this.listening = false; this.onStateChange && this.onStateChange(false);
-        if (this.handsFree && !this._stopHandsFree) setTimeout(() => this.startListening(), 350);
+        this._clearWatchdog();
+        const wasHandsFree = this.handsFree;
+        this.listening = false;
+        this.onStateChange && this.onStateChange(false);
+        if (wasHandsFree && !this._stopHandsFree) setTimeout(() => this.startListening(), 350);
       };
       rec.onerror = (e) => {
-        this.listening = false; this.onStateChange && this.onStateChange(false);
-        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') this.handsFree = false;
+        this._clearWatchdog();
+        this.listening = false;
+        this.onStateChange && this.onStateChange(false);
+        const code = (e && e.error) || 'unknown';
+        if (code === 'not-allowed' || code === 'service-not-allowed') this.handsFree = false;
+        this.onError && this.onError(code);
       };
       rec.onresult = (ev) => {
+        this._clearWatchdog();
         const t = ev.results[0][0].transcript;
+        // Force a clean end - iOS stops delivering results without firing onend.
+        try { rec.stop(); } catch (e) {}
         this.onResult && this.onResult(t);
       };
-      try { rec.start(); return true; } catch (e) { return false; }
+      try { rec.start(); return true; } catch (e) {
+        this._rec = null;
+        this.onError && this.onError('start-failed');
+        return false;
+      }
     },
 
     stopListening() {
       this._stopHandsFree = true;
       this.handsFree = false;
+      this._clearWatchdog();
       if (this._rec) { try { this._rec.stop(); } catch (e) {} }
       this.listening = false;
       this.onStateChange && this.onStateChange(false);

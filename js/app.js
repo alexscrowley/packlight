@@ -341,20 +341,42 @@
   $('#reset-btn').addEventListener('click', reset);
 
   const micBtn = $('#mic-btn');
+  const noteEl = $('#mic-note');
+  const NOTE_DEFAULT = 'Tap the mic once and just talk — it keeps listening until you tap it again. Typing works too.';
+  const NOTE_LISTENING = 'Listening… say where you\'re headed, or "check" plus an item while packing.';
+  const ERROR_NOTES = {
+    'not-allowed': 'The mic is blocked for this site. Allow it from the address-bar / browser settings, then tap the mic again — or just type, it does everything voice does.',
+    'service-not-allowed': 'This browser is blocking speech recognition. If you opened this inside another app, try opening it in Safari or Chrome directly — or just type.',
+    'network': 'The browser\'s speech service had a connection hiccup. Try again, or type.',
+    'no-speech': 'Didn\'t catch anything. Tap the mic and try again, or type.',
+    'audio-capture': 'No microphone found on this device. Typing works the same.',
+    'constructor': 'Voice couldn\'t start in this browser. If you\'re in an in-app browser, open the link in Safari or Chrome directly — typing also works.',
+    'start-failed': 'Voice couldn\'t start in this browser. If you\'re in an in-app browser, open the link in Safari or Chrome directly — typing also works.',
+    'timeout': 'Voice listening stalled (some mobile browsers do this). Tap the mic to retry — typing always works.',
+    'unknown': 'Voice hit an error in this browser. Typing does everything voice does.',
+  };
+  function setNote(t) { noteEl.textContent = t; }
+
   if (!V.recognitionAvailable) {
-    micBtn.style.display = 'none';
-    $('#mic-note').textContent = 'Voice input needs Chrome, Edge, or Safari — typing works everywhere.';
+    micBtn.classList.add('disabled');
+    micBtn.disabled = true;
+    setNote('Voice input isn\'t supported in this browser (Firefox, and most in-app browsers). Typing does everything voice does.');
   }
   micBtn.addEventListener('click', () => {
-    if (V.listening || V.handsFree) { V.stopListening(); micBtn.classList.remove('live'); return; }
+    if (V.listening || V.handsFree) { V.stopListening(); micBtn.classList.remove('live'); setNote(NOTE_DEFAULT); return; }
     V.handsFree = true;
     micBtn.classList.add('live');
-    V.startListening();
+    if (!V.startListening()) { V.handsFree = false; micBtn.classList.remove('live'); }
   });
   V.onResult = t => handleInput(t);
   V.onStateChange = on => {
     micBtn.classList.toggle('listening', on);
-    if (!on && !V.handsFree) micBtn.classList.remove('live');
+    if (on) setNote(NOTE_LISTENING);
+    else if (!V.handsFree) { micBtn.classList.remove('live'); setNote(NOTE_DEFAULT); }
+  };
+  V.onError = code => {
+    micBtn.classList.remove('live', 'listening');
+    setNote(ERROR_NOTES[code] || ERROR_NOTES.unknown);
   };
 
   /* ---------- boot ---------- */
