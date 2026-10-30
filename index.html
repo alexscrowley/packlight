@@ -109,7 +109,7 @@ main{flex:1;min-height:0;display:flex;flex-direction:column;padding-top:16px;pad
 #mic.live svg{display:none}
 #mic.live::after{content:"";width:20px;height:20px;border-radius:4px;background:currentColor}
 #mic.off{opacity:.35;cursor:not-allowed}
-#mic.nudge{outline:3px solid var(--pl);outline-offset:4px}
+.pairs dd small.fix{display:block;font-size:12px;color:var(--muted,#8a857c);font-style:normal;margin-top:2px}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--pl) 50%,transparent)}50%{box-shadow:0 0 0 14px color-mix(in srgb,var(--pl) 0%,transparent)}}
 @media (prefers-reduced-motion:reduce){#mic.live{animation:none;outline:3px solid var(--pl);outline-offset:3px}#utts p.live::after{animation:none}}
 #form{flex:1;min-width:0;display:flex;gap:8px;align-items:flex-end}
@@ -293,10 +293,11 @@ footer{border-top:1px solid var(--line);padding:10px 0 14px;font-size:12.5px;col
   <div class="wrap">Packlight · weather from <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>. A demo tool: no account, no tracking; your trip stays in this browser.</div>
 </footer>
 
-<script src="engine.js?v=5"></script>
-<script src="parse.js?v=5"></script>
-<script src="voice.js?v=5"></script>
-<script src="app.js?v=5"></script>
+<script src="engine.js?v=6"></script>
+<script src="parse.js?v=6"></script>
+<script src="place.js?v=6"></script>
+<script src="voice.js?v=6"></script>
+<script src="app.js?v=6"></script>
 <script>
 (function(){
   var r=document.documentElement,b=document.getElementById("theme");

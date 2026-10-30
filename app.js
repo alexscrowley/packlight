@@ -2,10 +2,9 @@
    No login, no keys, no backend. State lives in localStorage. */
 (function () {
   "use strict";
-  var E = window.LeanEngine, P = window.LeanParse, V = window.LeanVoice;
+  var E = window.LeanEngine, P = window.LeanParse, V = window.PackVoice, G = window.PackPlace;
   var $ = function (s) { return document.querySelector(s); };
   var KEY = "packlight-web-v1", MUTE_KEY = "packlight-muted";
-  var GEO = "https://geocoding-api.open-meteo.com/v1/search";
   var FORECAST = "https://api.open-meteo.com/v1/forecast";
   var ARCHIVE = "https://archive-api.open-meteo.com/v1/archive";
   var CARRY_ON_KG = 7, CHECKED_KG = 15;
@@ -25,14 +24,9 @@
   var F = function (c) { return Math.round(c * 9 / 5 + 32); };
   function fetchJson(u) { return fetch(u).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }); }
   function shiftYear(s, n) { var p = s.split("-"); return (+p[0] + n) + "-" + p[1] + "-" + (p[1] === "02" && p[2] === "29" ? "28" : p[2]); }
-  function placeLabel(p, fallback) { return p ? [p.name, p.region && p.region !== p.name ? p.region : "", p.country].filter(Boolean).join(", ") : fallback; }
-
-  function geocode(name) {
-    return fetchJson(GEO + "?count=1&language=en&format=json&name=" + encodeURIComponent(name.replace(/,.*$/, ""))).then(function (g) {
-      var h = g.results && g.results[0];
-      return h ? { name: h.name, region: h.admin1 || "", country: h.country || "", lat: h.latitude, lon: h.longitude } : null;
-    });
-  }
+  function placeLabel(p, fallback) { return p ? (p.countryCode != null ? G.label(p) : [p.name, p.region && p.region !== p.name ? p.region : "", p.country].filter(Boolean).join(", ")) : fallback; }
+  /* spoken place -> GeoNames place (place.js): sub-spans, country/state qualifiers, population */
+  function geocode(dests, text) { return G.resolve(dests, text, fetchJson); }
   /* Forecast covers today..today+15. Past that: last year's weather for the same dates. */
   function getWeather(place, start, nights) {
     var t = P.today(), horizon = P.addDays(t, 15), end = P.addDays(start, Math.min(nights, 15));
@@ -72,7 +66,7 @@
   /* ---------- the draft: what's known, what's missing ---------- */
   function hasBack(d) { return !!d.endDate || d.nights != null; }
   var NEEDS = [
-    ["dest", "Where you're going", function (d) { return d.dest && !d.destBad; }],
+    ["dest", "Where you're going", function (d) { return !!d.place && !d.destBad; }],
     ["leave", "When you leave", function (d) { return !!d.startDate; }],
     ["back", "When you're back", hasBack],
     ["laundry", "Whether you'll have a washing machine", function (d) { return !!d.laundry; }],
@@ -81,10 +75,6 @@
   function missing(d) { return NEEDS.filter(function (n) { return !n[2](d); }); }
 
   function merge(d, p) {
-    if (p.dest && (!d.dest || d.destBad || p.dest !== d.dest)) {
-      // a later utterance can correct the place only when it clearly names one
-      if (!d.dest || d.destBad || p.destMarked) { d.dest = p.dest; delete d.destBad; delete d.place; }
-    }
     if (p.startDate && !p.endDate && d.startDate && !hasBack(d)) { p.endDate = p.startDate; p.endWeekday = !!p.startWeekday; delete p.startDate; }
     if (p.startDate) d.startDate = p.startDate;
     if (p.endDate) { d.endDate = p.endDate; d.endWeekday = !!p.endWeekday; d.nights = null; }
@@ -108,33 +98,46 @@
   var busy = false;
   function setBusy(b) { busy = b; document.body.classList.toggle("busy", b); }
 
-  /* Screen 1: every utterance (voice or typed) refines the same draft */
+  /* Screen 1: every utterance (voice or typed) refines the same draft.
+     A new place replaces the current one when it's clearly meant as the place: no place yet,
+     "to/in X", a correction ("no, San Diego California"), or the utterance is mostly the place.
+     It only replaces after it resolves, so a mishearing never wipes a good destination. */
+  function wantsPlace(d, p, text) {
+    if (!p.dest) return false;
+    if (!d.place || d.destBad || p.correction || state.utts.length === 1) return true;
+    if (/\b(?:to|in|visiting|into)\s+[a-z]/i.test(text)) return true;
+    return p.dest.split(" ").length >= Math.ceil(text.trim().split(/\s+/).length / 2);
+  }
   function handleInput(text, via) {
     text = String(text || "").trim();
-    if (!text) return;
+    if (!text) return Promise.resolve();
     state.utts.push(text);
-    var p = P.parseTrip(text);
-    p.destMarked = /\b(to|in|visiting)\s+[a-z]/i.test(text) || (state.utts.length === 1);
-    merge(state.draft, p);
-    settle(state.draft);
-    var d = state.draft;
-    var check = d.dest && !d.place && !d.destBad ? geocode(d.dest).catch(function () { return "offline"; }) : Promise.resolve(null);
+    var d = state.draft, p = P.parseTrip(text), note = "";
+    var tryPlace = wantsPlace(d, p, text);
+    merge(d, p);
+    settle(d);
+    var check = tryPlace ? geocode(p.dests, text).catch(function () { return "offline"; }) : Promise.resolve(null);
     setBusy(true); renderInput();
     return check.then(function (place) {
       setBusy(false);
-      if (place === "offline") d.place = { name: d.dest, country: "", lat: null, lon: null };
-      else if (place) d.place = place;
-      else if (d.dest && !d.place) { d.destBad = d.dest; d.dest = null; }
+      if (tryPlace) {
+        if (place === "offline") { if (!d.place) { d.dest = p.dest; d.place = { name: p.dest, country: "", lat: null, lon: null }; delete d.destBad; } note = "Offline, so no weather lookup. "; }
+        else if (place) {
+          var changed = d.place && d.place.id !== place.id;
+          d.place = place; d.dest = place.name; delete d.destBad;
+          if (changed) note = "Changed to " + G.label(place) + ". ";
+        } else if (d.place && !d.destBad) {
+          if (p.correction || /\b(?:to|in|visiting|into)\s/i.test(text)) note = "Couldn't find \u201c" + p.dest + "\u201d, so it's still " + placeLabel(d.place) + ". ";
+        } else { d.destBad = p.dest; d.dest = null; d.place = null; }
+      }
       save(); renderInput();
       // the trip summary sits at the top of the window once he's done talking
       if (!mobile()) window.scrollTo(0, 0);
       else window.scrollTo(0, $("#trip-sum").getBoundingClientRect().top + window.scrollY - 8);
       var miss = missing(d);
-      if (miss.length) {
-        say((d.destBad ? "I couldn't find \u201c" + d.destBad + "\u201d. " : "") + "Still need: " + miss.map(function (n) { return n[1].toLowerCase(); }).join("; ") + ".", function () {
-          if (via === "voice") autoListen();
-        }, "Answer what's still needed in one go.");
-      } else say("Got everything. Tap Build the list.");
+      if (miss.length) say(note + (d.destBad ? "I couldn't find \u201c" + d.destBad + "\u201d. " : "") + "Still need: " + miss.map(function (n) { return n[1].toLowerCase(); }).join("; ") + ".", null,
+        note + "Tap the mic and answer what's still needed in one go.");
+      else say(note + "Got everything. Tap Build the list.");
     });
   }
 
@@ -143,10 +146,10 @@
     var d = state.draft, sum = $("#trip-sum"), miss = $("#missing");
     var any = state.utts.length > 0;
     if (any) {
-      var row = function (label, val, isMiss) { return "<div><dt>" + label + "</dt><dd" + (isMiss ? ' class="miss"' : "") + ">" + esc(val) + "</dd></div>"; };
+      var row = function (label, val, isMiss, hint) { return "<div><dt>" + label + "</dt><dd" + (isMiss ? ' class="miss"' : "") + ">" + esc(val) + (hint ? '<small class="fix">' + esc(hint) + "</small>" : "") + "</dd></div>"; };
       var nights = d.nights != null ? " \u00b7 " + d.nights + " night" + (d.nights === 1 ? "" : "s") : "";
       sum.innerHTML = '<div class="sum-h"><p>Your trip</p><button type="button" id="startover">Start over</button></div><dl class="pairs">' +
-        row("Where", d.place ? placeLabel(d.place) : d.dest || "missing", !(d.dest && !d.destBad)) +
+        row("Where", d.place ? placeLabel(d.place) : d.dest || "missing", !(d.place && !d.destBad), d.place && d.place.countryCode != null ? "Wrong? Just say the right place." : "") +
         row("Leave", d.startDate ? fmtDate(d.startDate) + (d.approxDate ? " (approx.)" : "") : "missing", !d.startDate) +
         row("Back", d.endDate ? fmtDate(d.endDate) + nights : d.nights != null ? d.nights + " nights" : "missing", !hasBack(d)) +
         row("Laundry", d.laundry ? (d.laundry === "yes" ? "Yes" : "No") : "missing", !d.laundry) +
@@ -166,7 +169,6 @@
     renderUtts();
     dockH();
   }
-  var live = "";
   function renderUtts() {
     var u = $("#utts");
     if (!state.utts.length && !live) { u.innerHTML = '<p class="t-empty">Tap the mic and describe the trip: where, when you leave and get back, laundry, carry-on or checked, plans. Say as much as you like.</p>'; return; }
@@ -317,73 +319,46 @@
     if (want !== state.view) { stopDictation(true); state.view = want; save(); show(); }
   });
 
-  /* ---------- dictation: keeps listening across pauses, shows the whole transcript ----------
-     Each recognition round is short (iOS needs a fresh recognizer per utterance); rounds restart
-     automatically (handsFree) and their finals accumulate until a ~2s silence or a second tap. */
-  var dict = null, SILENCE_MS = 2200, autoStart = false;
+  /* ---------- dictation: one recognizer session per tap (voice.js) ----------
+     Tap -> Listening (whole transcript shows as it grows). Tap again, or pause ~2.5s -> the
+     text is handled once. No auto-restarts, no hidden sessions. */
+  var live = "";
   function target() { return state.view === "list" ? "cmd" : "input"; }
-  function startDictation(isAuto) {
-    if (dict) return true;
+  function startDictation() {
+    if (V.listening) return true;
     if (!V.recognitionAvailable) return false;
-    autoStart = !!isAuto;
-    dict = { finals: [], interim: "", timer: null, where: target() };
-    live = ""; V.handsFree = true;
-    paintMic(true);
-    if (!V.startListening()) { dict = null; paintMic(false); return false; }
-    return true;
+    var where = target();
+    live = "";
+    return V.listen({
+      onState: paintMic,
+      onText: function (t) { if (where === "cmd") $("#cmd-text").value = t; else { live = t; renderUtts(); } },
+      onDone: function (t, why) {
+        live = "";
+        if (where === "cmd") $("#cmd-text").value = "";
+        else renderUtts();
+        t = (t || "").trim();
+        if (t) { if (where === "cmd") listCommand(t); else handleInput(t, "voice"); return; }
+        var M = { nothing: "Didn't hear anything. Tap the mic and talk, or type.", "not-allowed": "The mic is blocked for this site. Allow it (Safari: aA \u2192 Website Settings \u2192 Microphone), or type.",
+          "service-not-allowed": "This browser blocks speech recognition. Typing works the same.", network: "The browser's speech service didn't answer. Try again, or type.",
+          "audio-capture": "No microphone found. Typing works the same.", "start-failed": "The mic didn't start. Tap it again, or type.", "language-not-supported": "Speech recognition isn't available for this language. Typing works the same." };
+        if (why !== "tap") setNote(M[why] || "Voice stopped. Tap the mic to try again, or type.");
+      }
+    });
   }
-  function liveText() { return dict ? (dict.finals.join(" ") + (dict.interim ? " " + dict.interim : "")).trim() : ""; }
-  function armSilence() { if (!dict) return; clearTimeout(dict.timer); dict.timer = setTimeout(finishDictation, SILENCE_MS); }
-  function finishDictation() {
-    if (!dict) return;
-    var text = liveText(), where = dict.where;
-    stopDictation(false);
-    if (!text) return;
-    if (where === "cmd") { $("#cmd-text").value = ""; listCommand(text); }
-    else handleInput(text, "voice");
-  }
-  function stopDictation(discard) {
-    if (!dict) return;
-    clearTimeout(dict.timer); dict = null; live = "";
-    V.stopListening(); paintMic(false);
-    if (discard && state.view === "input") renderUtts();
-  }
-  function paintMic(on) {
-    ["#mic", "#cmd-mic"].forEach(function (s) { var b = $(s); b.classList.toggle("live", on); b.setAttribute("aria-pressed", String(on)); if (on) b.classList.remove("nudge"); });
-    if (on) setNote(state.view === "list" ? "Listening\u2026" : "Listening\u2026 say as much as you like. Tap again when you're done.");
-    else if (/^Listening/.test($("#mic-note").textContent)) setNote("Tap the mic to talk. Tap again when you're done.", true);
+  function stopDictation(discard) { if (discard) { V.cancel(); live = ""; if (state.view === "input") renderUtts(); } else V.stop("tap"); }
+  function paintMic(st) {
+    var on = st !== "idle";
+    ["#mic", "#cmd-mic"].forEach(function (s) { var b = $(s); b.classList.toggle("live", on); b.setAttribute("aria-pressed", String(on)); b.setAttribute("aria-label", on ? "Stop listening" : "Start talking"); });
+    if (st === "listening") setNote(state.view === "list" ? "Listening\u2026 tap to stop." : "Listening\u2026 say as much as you like. Tap when you're done.");
+    else if (st === "stopping") setNote("Finishing\u2026");
+    else if (/^(Listening|Finishing)/.test($("#mic-note").textContent)) setNote("Tap the mic to talk.", true);
   }
   function setNote(t, quiet) { var n = $("#mic-note"); n.textContent = t; n.classList.toggle("quiet", !!quiet); if (state.view === "list" && !quiet) $("#cmd-reply").textContent = t; }
-  function showLive() {
-    var t = liveText();
-    if (!dict) return;
-    if (dict.where === "cmd") { $("#cmd-text").value = t; return; }
-    live = t; renderUtts();
-  }
-  V.onInterim = function (t) { if (!dict) return; dict.interim = t; showLive(); armSilence(); };
-  V.onResult = function (t) { if (!dict) return; dict.finals.push(t.trim()); dict.interim = ""; autoStart = false; showLive(); armSilence(); };
-  V.onStateChange = function () {};
-  V.onNoInput = function () { if (dict && !liveText()) { stopDictation(true); setNote("Not hearing anything. Check the browser's mic permission, or type."); } };
-  V.onError = function (code) {
-    if (!dict) return;
-    if (code === "no-speech" || code === "aborted") { if (liveText()) finishDictation(); return; }
-    var wasAuto = autoStart; stopDictation(true);
-    if (wasAuto && code !== "audio-capture") return nudgeTap();
-    var M = { "not-allowed": "The mic is blocked for this site. Allow it in the address bar, or type.", "service-not-allowed": "This browser blocks speech recognition. Typing works the same.",
-      "network": "The browser's speech service had a hiccup. Try again, or type.", "audio-capture": "No microphone found. Typing works the same.", "timeout": "Voice stalled. Tap the mic to retry, or type." };
-    setNote(M[code] || "Voice hit a snag in this browser. Typing works the same.");
-  };
-  /* After a voice answer leaves gaps, reopen the mic. iOS Safari may refuse a start that isn't
-     from a tap; then ask for one tap instead of showing an error. */
-  function autoListen() {
-    if (state.view !== "input" || !V.recognitionAvailable) return;
-    setTimeout(function () { if (!startDictation(true)) nudgeTap(); }, 300);
-  }
-  function nudgeTap() { autoStart = false; $("#mic").classList.add("nudge"); setNote("Tap the mic and answer everything at once."); }
+  function micTap() { if (V.listening) stopDictation(false); else if (!startDictation()) setNote("The mic didn't start. Tap it again, or type."); }
 
   /* ---------- wiring ---------- */
-  $("#mic").addEventListener("click", function () { if (dict) finishDictation(); else startDictation(false); });
-  $("#cmd-mic").addEventListener("click", function () { if (dict) finishDictation(); else startDictation(false); });
+  $("#mic").addEventListener("click", micTap);
+  $("#cmd-mic").addEventListener("click", micTap);
   if (!V.recognitionAvailable) {
     ["#mic", "#cmd-mic"].forEach(function (s) { $(s).disabled = true; $(s).classList.add("off"); });
     setNote("Voice input needs Chrome, Edge or Safari. Typing does the same thing.");
@@ -433,6 +408,5 @@
   if (location.hash === "#trip" && state.view === "list") state.view = "input";
   history.replaceState(null, "", state.view === "list" ? "#list" : "#trip");
   show();
-  window.__packlight = { handle: function (t, via) { return state.view === "list" ? listCommand(t) : handleInput(t, via || "text"); }, state: function () { return state; },
-    _dictate: function (parts) { startDictation(false); parts.forEach(function (p) { V.onInterim(p); }); if (parts.length) V.onResult(parts[parts.length - 1]); return liveText(); }, _finish: finishDictation };
+  window.__packlight = { handle: function (t, via) { return state.view === "list" ? listCommand(t) : handleInput(t, via || "text"); }, state: function () { return state; } };
 })();

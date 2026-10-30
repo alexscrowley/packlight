@@ -108,16 +108,19 @@
     ["camping", /\b(camp|camping|tent)\b/]
   ];
 
-  var CITY_ALIASES = { nyc: "New York", "new york city": "New York", la: "Los Angeles", sf: "San Francisco", dc: "Washington, D.C.", "d c": "Washington, D.C.", philly: "Philadelphia", vegas: "Las Vegas" };
+  var CITY_ALIASES = { nyc: "New York", "new york city": "New York", "n y c": "New York", la: "Los Angeles", "l a": "Los Angeles", sf: "San Francisco", "s f": "San Francisco", dc: "Washington DC", "d c": "Washington DC", "washington d c": "Washington DC", philly: "Philadelphia", vegas: "Las Vegas", saigon: "Ho Chi Minh City", hcmc: "Ho Chi Minh City" };
 
-  var FILLER = /^(?:(?:so|ok|okay|um|uh|hey|well|alright|actually|i'?m|i am|we'?re|we are|i'?ll be|we'?ll be|i will be|i'?ve got|i have|we have|going|gonna|go|heading|headed|head|flying|fly|driving|drive|traveling|travelling|taking|take|off|out|over|down|up|on|a|an|my|our|the|trip|work trip|business trip|vacation|holiday|getaway|visit(?:ing)?|planning|plan|to|for|it'?s|its|there'?s|then|and|just)\s+)+/;
+  var FILLER = /^(?:(?:no|nope|nah|not|wait|sorry|oops|i meant|i mean|i said|meant|wrong|make that|make it|change it to|change that to|change to|instead|so|ok|okay|um|uh|hey|well|alright|actually|i'?m|i am|we'?re|we are|i'?ll be|we'?ll be|i will be|i'?ve got|i have|we have|going|gonna|go|heading|headed|head|flying|fly|driving|drive|traveling|travelling|taking|take|off|out|over|down|up|on|a|an|my|our|the|trip|work trip|business trip|vacation|holiday|getaway|visit(?:ing)?|planning|plan|to|for|it'?s|its|there'?s|then|and|just)\s+)+/;
   var STOP = /\s+\b(?:for|on|from|with|and|next|this|leaving|leave|departing|until|till|through|thru|returning|return|back|over|during|starting|then|but|plus|some|no|doing|staying|via|by|around|after|before)\b.*$/;
-  var NOT_PLACE = /^(yes|yeah|yep|no|nope|ok|okay|sure|please|thanks|it|there|home|here|nothing|none|carry|carry on|checked|laundry|some|just|trip|a|the|and|for|week|weekend|nights?|days?)$/;
+  var NOT_PLACE = /^(yes|yeah|yep|no|nope|ok|okay|sure|please|thanks|it|there|home|here|nothing|none|carry|carry on|checked|laundry|some|just|trip|a|the|and|for|week|weekend|nights?|days?|go|be|see|stay|staying|work|working|fly|drive|head|hike|ski|surf|swim|camp|meet|get|do|have|pack|leave|bring|hotels?|(?:an? |the |my )?(?:hotel|airbnb|resort|hostel|conference|wedding|meeting|friends?(?:'s| house)?|family|parents|mom|dad|beach|mountains|city|town|office|school|lake|cabin)|i|we|me|us|that|this|then|there|it'?s|i'?ll|we'?ll|i'?ll have|i have)$/;
+  var CORRECTION = /^\s*(?:no|nope|nah|not|wait|sorry|oops|actually|i meant|i mean|i said|wrong|make (?:it|that)|change)\b/;
 
   function cleanDest(s) {
     if (!s) return null;
+    // "a hotel in kyoto" / "into reykjavik": keep what follows the last place marker
+    s = s.replace(/^.*\b(?:in|to|at|into|near|visiting)\s+(?=[a-z])/, "");
     s = s.replace(/[.!?]+$/, "").replace(FILLER, "").replace(STOP, "").replace(/\s+(?:in|to|at)$/, "").replace(/[,\s]+$/, "").trim();
-    if (!s || /\d/.test(s) || s.length < 2 || s.split(" ").length > 4 || NOT_PLACE.test(s)) return null;
+    if (!s || /\d/.test(s) || s.length < 2 || s.split(" ").length > 6 || NOT_PLACE.test(s)) return null;
     if (CITY_ALIASES[s]) return CITY_ALIASES[s];
     return s.replace(/\b([a-z])/g, function (c) { return c.toUpperCase(); }).replace(/\b(De|Del|Da|Di|Du|La|Le|Los|Las|Of|Upon|On|Am|Im)\b(?=\s)/g, function (w, x, i) { return i === 0 ? w : w.toLowerCase(); });
   }
@@ -126,7 +129,8 @@
   function parseTrip(text, now) {
     var t0 = today(now);
     var out = { activities: [] };
-    var s = " " + numerals(String(text || "").toLowerCase().replace(/[\u2018\u2019]/g, "'").replace(/[\u2013\u2014]/g, "-")) + " ";
+    // accents off (S\u00e3o Paulo, Reykjav\u00edk): the geocoder is accent-insensitive anyway
+    var s = " " + numerals(String(text || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[\u2018\u2019]/g, "'").replace(/[\u2013\u2014]/g, "-")) + " ";
     function cut(re, fn) { s = s.replace(re, function () { var r = fn.apply(null, arguments); return r == null ? " , " : r; }); }
 
     // laundry / carry-on / meds first (they contain words like "no" and "bag")
@@ -190,15 +194,26 @@
     if (out.startDate && !out.endDate && out.nights != null) out.endDate = addDays(out.startDate, out.nights);
     if (!out.startDate && out.endDate && out.nights != null) out.startDate = addDays(out.endDate, -out.nights);
 
-    // destination: marker phrases first, then the first leftover chunk
-    var rest = s.replace(/\s+/g, " ");
-    var dest = null, mk = rest.match(/\b(?:to|in|visiting|visit|at|around|into)\s+([a-z][a-z.'\- ]*?)(?=\s*(?:,|$|\.|\b(?:for|on|from|with|and|next|this|leaving|then|until|till|through|returning|back|over|during|starting|some|no|but|plus)\b))/);
-    if (mk) dest = cleanDest(mk[1]);
-    if (!dest) {
-      var chunks = rest.split(/[,.;!?]/);
-      for (var i = 0; i < chunks.length && !dest; i++) dest = cleanDest(chunks[i].trim());
+    // destination: every marker phrase ("to X", "in X") in order, then the leftover chunks.
+    // All plausible spans go out as dests[]; the geocoder takes the first that is a real place.
+    // A country/state after a comma rides along: "bangkok, thailand" -> "bangkok thailand".
+    var rest = s.replace(/\s+/g, " "), dests = [];
+    var END = "(?=\\s*(?:,|$|\\.|;|\\b(?:for|on|from|with|and|next|this|leaving|then|until|till|through|returning|back|over|during|starting|some|no|but|plus|because|since|so)\\b))";
+    var MK = new RegExp("\\b(?:to|in|visiting|visit|at|around|into|near|outside|out of)\\s+([a-z][a-z.'\\- ]*?)" + END + "(\\s*,\\s*([a-z][a-z.' ]*?)" + END + ")?", "g");
+    function addDest(span, qual) {
+      var d = cleanDest(span);
+      if (!d) return;
+      var q = qual && cleanDest(qual);
+      if (q && q.split(" ").length <= 3 && !CITY_ALIASES[qual.trim()]) d = d + " " + q;
+      if (dests.indexOf(d) < 0) dests.push(d);
     }
-    if (dest) out.dest = dest;
+    var mm2;
+    while ((mm2 = MK.exec(rest))) { addDest(mm2[1], mm2[3]); MK.lastIndex = mm2.index + 1; }
+    var chunks = rest.split(/[.;!?]/).join(",").split(",");
+    for (var i = 0; i < chunks.length; i++) addDest(chunks[i].trim(), chunks[i + 1] && chunks[i + 1].trim());
+    for (i = 0; i < chunks.length; i++) addDest(chunks[i].trim());
+    if (dests.length) { out.dest = dests[0]; out.dests = dests; }
+    if (CORRECTION.test(s)) out.correction = true;
     var bare = String(text || "").trim().match(/^(\d{1,2})$/);
     if (bare) out.bareNumber = +bare[1];
     var yn = String(text || "").trim().toLowerCase().match(/^(yes|yeah|yep|sure|no|nope|nah)[.!]?$/);
