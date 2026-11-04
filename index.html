@@ -9,8 +9,8 @@
 <title>Packlight · Alex Crowley</title>
 <meta name="description" content="Packlight: talk your way to a lighter bag. Say your trip, get a weather-aware packing checklist. No account; your trip stays in this browser.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235ee0a0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 7.5V6a3 3 0 0 1 6 0v1.5'/%3E%3Crect x='5' y='7.5' width='14' height='13.5' rx='4'/%3E%3Cpath d='M5 12.5h14'/%3E%3Crect x='9.2' y='14.5' width='5.6' height='3.6' rx='1.4'/%3E%3C/svg%3E">
-<link rel="manifest" href="manifest.webmanifest">
-<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Packlight">
@@ -19,7 +19,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <script>
-(function(){var t;try{t=localStorage.getItem("lauc-theme")}catch(e){}
+(function(){var t;try{t=localStorage.getItem("packlight-theme")}catch(e){}
 if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";
 document.documentElement.dataset.theme=t;})();
 </script>
@@ -53,7 +53,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 .skip:focus{left:8px}
 .muted{color:var(--muted)}
 
-/* Shared site nav (same as homepage) */
+/* Site nav. Points at alexcrowley.dev so this app can live on its own origin. */
 .topbar{border-top:3px solid var(--accent);border-bottom:1px solid var(--line)}
 nav{display:flex;justify-content:space-between;align-items:center;gap:12px 22px;flex-wrap:wrap;padding:12px 0}
 nav .name{font-weight:600;color:var(--ink);text-decoration:none;font-size:15px;margin-right:auto}
@@ -227,8 +227,8 @@ footer{border-top:1px solid var(--line);padding:10px 0 14px;font-size:12.5px;col
 <div class="topbar">
 <div class="wrap">
 <nav aria-label="Primary">
-  <a class="name" href="/">Alex Crowley</a>
-  <span class="nav-links"><a href="/#work">Work</a><a href="/#about">About</a><a href="/#contact">Contact</a></span>
+  <a class="name" href="https://alexcrowley.dev/">Alex Crowley</a>
+  <span class="nav-links"><a href="https://alexcrowley.dev/#work">Work</a><a href="https://alexcrowley.dev/#about">About</a><a href="https://alexcrowley.dev/#contact">Contact</a></span>
   <button id="theme" type="button" aria-pressed="false">Dark mode</button>
 </nav>
 </div>
@@ -293,17 +293,17 @@ footer{border-top:1px solid var(--line);padding:10px 0 14px;font-size:12.5px;col
   <div class="wrap">Packlight · weather and places from <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>) and <a href="https://www.geonames.org/" target="_blank" rel="noopener">GeoNames</a>. A demo tool: no account, no tracking; your trip stays in this browser.</div>
 </footer>
 
-<script src="engine.js?v=6"></script>
-<script src="parse.js?v=6"></script>
-<script src="place.js?v=6"></script>
-<script src="voice.js?v=6"></script>
-<script src="app.js?v=6"></script>
+<script src="/engine.js?v=6"></script>
+<script src="/parse.js?v=6"></script>
+<script src="/place.js?v=6"></script>
+<script src="/voice.js?v=6"></script>
+<script src="/app.js?v=6"></script>
 <script>
 (function(){
   var r=document.documentElement,b=document.getElementById("theme");
   function sync(){var d=r.dataset.theme==="dark";b.textContent=d?"Light mode":"Dark mode";b.setAttribute("aria-pressed",String(d));}
   sync();
-  b.addEventListener("click",function(){var t=r.dataset.theme==="dark"?"light":"dark";r.dataset.theme=t;try{localStorage.setItem("lauc-theme",t)}catch(e){}sync();});
+  b.addEventListener("click",function(){var t=r.dataset.theme==="dark"?"light":"dark";r.dataset.theme=t;try{localStorage.setItem("packlight-theme",t)}catch(e){}sync();});
 })();
 </script>
 </body>
