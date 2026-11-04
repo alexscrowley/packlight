@@ -1,0 +1,14 @@
+{
+  "name": "Packlight",
+  "short_name": "Packlight",
+  "description": "Talk your way to a lighter bag: say your trip, get a weather-aware packing list.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0d1110",
+  "theme_color": "#0d1110",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

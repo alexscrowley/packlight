@@ -1,61 +1,310 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Packlight — voice-first minimalist packing</title>
-<meta name="description" content="Talk your way to a lighter bag. Packlight builds a weather-aware, minimalist packing checklist you can check off by voice.">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f6f4ef" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#141311" media="(prefers-color-scheme: dark)">
+<title>Packlight · Alex Crowley</title>
+<meta name="description" content="Packlight: talk your way to a lighter bag. Say your trip, get a weather-aware packing checklist. No account; your trip stays in this browser.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235ee0a0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 7.5V6a3 3 0 0 1 6 0v1.5'/%3E%3Crect x='5' y='7.5' width='14' height='13.5' rx='4'/%3E%3Cpath d='M5 12.5h14'/%3E%3Crect x='9.2' y='14.5' width='5.6' height='3.6' rx='1.4'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="style.css?v=5">
-</head>
-<body>
-<header>
-  <div class="brand">
-    <svg class="mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d="M9 7.5V6a3 3 0 0 1 6 0v1.5"/>
-      <rect x="5" y="7.5" width="14" height="13.5" rx="4"/>
-      <path d="M5 12.5h14"/>
-      <rect x="9.2" y="14.5" width="5.6" height="3.6" rx="1.4"/>
-    </svg>
-    <div>
-      <h1>Packlight</h1>
-      <p class="tagline">talk your way to a lighter bag</p>
-    </div>
-  </div>
-  <button id="reset-btn" title="Start a new trip">new trip</button>
-</header>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Packlight">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script>
+(function(){var t;try{t=localStorage.getItem("packlight-theme")}catch(e){}
+if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";
+document.documentElement.dataset.theme=t;})();
+</script>
+<style>
+:root,[data-theme="light"]{
+  color-scheme:light;
+  --bg:#f6f4ef;--card:#fcfbf8;--hover:#efeae0;
+  --ink:#181715;--ink-2:#36332d;--muted:#575249;--line:#dcd6c8;
+  --accent:#7c251d;--accent-tint:#f1e4e2;--green:#165338;--amber:#6b4306;
+  --font:'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  /* Packlight app palette (light counterpart of packlight's mint on near-black) */
+  --pl:#17704a;--pl-ink:#ffffff;--pl-tint:#e4f2eb;--warn-bg:#fbefe2;--warn-line:#b8661f;--warn-ink:#5e3208;
+}
+[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#141311;--card:#1b1917;--hover:#211f1b;
+  --ink:#ece8df;--ink-2:#cfc9bc;--muted:#a8a193;--line:#2b2823;
+  --accent:#eb8f86;--accent-tint:#33201e;--green:#85d9af;--amber:#f0c67d;
+  --pl:#5ee0a0;--pl-ink:#0d1110;--pl-tint:#15251e;--warn-bg:#2a1f12;--warn-line:#e0a05e;--warn-ink:#f3d3a6;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:var(--bg)}
+body{font:400 15px/1.5 var(--font);color:var(--ink);background:var(--bg);-webkit-font-smoothing:antialiased;min-height:100vh;display:flex;flex-direction:column}
+a{color:var(--accent);text-underline-offset:3px}
+a:hover{opacity:.8}
+a:focus-visible,button:focus-visible,textarea:focus-visible,input:focus-visible{outline:2px solid var(--pl);outline-offset:2px;border-radius:4px}
+button{font:inherit;color:inherit;cursor:pointer}
+[hidden]{display:none!important}
+.wrap{max-width:1320px;margin:0 auto;padding:0 32px;width:100%}
+.skip{position:absolute;left:-999px;top:8px;background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:4px;z-index:30}
+.skip:focus{left:8px}
+.muted{color:var(--muted)}
 
-<main>
-  <section id="conversation">
-    <div id="log"></div>
-    <p id="assistant-line" class="assistant-line"></p>
-    <p id="user-line" class="user-line"></p>
-    <div class="controls">
-      <button id="mic-btn" aria-label="Toggle voice control">
-        <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-          <rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="17" x2="12" y2="22"/>
-        </svg>
-      </button>
-      <input id="text-input" type="text" placeholder='or type: "Tokyo for 5 days"' autocomplete="off">
-      <button id="send-btn" aria-label="Send">→</button>
+/* Site nav. Points at alexcrowley.dev so this app can live on its own origin. */
+.topbar{border-top:3px solid var(--accent);border-bottom:1px solid var(--line)}
+nav{display:flex;justify-content:space-between;align-items:center;gap:12px 22px;flex-wrap:wrap;padding:12px 0}
+nav .name{font-weight:600;color:var(--ink);text-decoration:none;font-size:15px;margin-right:auto}
+.nav-links{display:flex;align-items:center;gap:22px;flex-wrap:wrap;font-size:14px}
+.nav-links a{color:var(--ink-2);text-decoration:none}
+.nav-links a:hover{color:var(--accent);opacity:1}
+#theme{font:500 14px/1.4 var(--font);border:1px solid var(--line);background:transparent;color:var(--accent);padding:4px 12px;border-radius:99px}
+#theme:hover{border-color:var(--accent)}
+
+main{flex:1;min-height:0;display:flex;flex-direction:column;padding-top:16px;padding-bottom:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px}
+.brand{display:flex;align-items:center;gap:12px}
+.mark{width:34px;height:34px;color:var(--pl);flex:none}
+.brand h1,.brand .h{font:600 20px/1.2 var(--font);letter-spacing:-.02em}
+.tagline{font-size:13px;color:var(--muted)}
+.pill{font:500 13px/1.3 var(--font);border:1px solid var(--line);background:transparent;color:var(--ink-2);padding:6px 12px;border-radius:99px;white-space:nowrap}
+.pill:hover{border-color:var(--pl);color:var(--ink)}
+#speaker[aria-pressed="true"]{border-color:var(--pl);color:var(--pl)}
+
+/* ---------- Screen 1: input ---------- */
+.v-input{flex:1;min-height:0;width:100%;max-width:780px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+.in-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+#trip-sum{padding:12px 16px}
+.sum-h{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+.sum-h p{font:600 12px/1.4 var(--font);letter-spacing:.06em;text-transform:uppercase;color:var(--pl)}
+.sum-h button{font-size:13px;color:var(--muted);background:none;border:0;text-decoration:underline;text-underline-offset:3px}
+.pairs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 18px}
+.pairs>div{display:flex;flex-direction:column;min-width:0}
+.pairs dt{font:600 11.5px/1.4 var(--font);letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.pairs dd{font-size:15px;color:var(--ink)}
+.pairs dd.miss{color:var(--warn-line);font-style:italic}
+#missing{border:1px solid var(--warn-line);background:var(--warn-bg);color:var(--warn-ink);border-radius:10px;padding:10px 14px}
+#missing .mh{font:600 14px/1.4 var(--font);display:flex;gap:8px;align-items:center}
+#missing .mh::before{content:"!";display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--warn-line);color:var(--bg);font-weight:700;font-size:13px}
+#missing ul{list-style:none;margin-top:4px;display:flex;flex-direction:column;gap:2px}
+#missing li{font-size:16px;padding-left:28px}
+#missing .mhint{font-size:13px;margin-top:6px;padding-left:28px;opacity:.85}
+#transcript{flex:1;min-height:110px;overflow:auto;padding:12px 16px;display:flex;flex-direction:column;gap:8px}
+.t-h{font:600 12px/1.4 var(--font);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+#utts{display:flex;flex-direction:column;gap:8px}
+#utts p{font-size:17px;line-height:1.5;color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere}
+#utts p.old{color:var(--muted);font-size:15px}
+#utts p.live{color:var(--pl)}
+#utts p.live::after{content:"";display:inline-block;width:8px;height:1.05em;margin-left:3px;vertical-align:-2px;background:var(--pl);animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.t-empty{color:var(--muted);font-size:15px}
+#reply{font-size:15px;color:var(--ink-2)}
+#reply:empty{display:none}
+.dock{display:flex;flex-direction:column;gap:10px}
+.inrow{display:flex;align-items:flex-end;gap:12px}
+#mic{flex:none;width:68px;height:68px;border-radius:50%;border:0;background:var(--pl);color:var(--pl-ink);display:grid;place-items:center;box-shadow:0 2px 12px rgba(0,0,0,.18)}
+#mic.live{animation:pulse 1.2s ease-in-out infinite}
+#mic.live svg{display:none}
+#mic.live::after{content:"";width:20px;height:20px;border-radius:4px;background:currentColor}
+#mic.off{opacity:.35;cursor:not-allowed}
+.pairs dd small.fix{display:block;font-size:12px;color:var(--muted,#8a857c);font-style:normal;margin-top:2px}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--pl) 50%,transparent)}50%{box-shadow:0 0 0 14px color-mix(in srgb,var(--pl) 0%,transparent)}}
+@media (prefers-reduced-motion:reduce){#mic.live{animation:none;outline:3px solid var(--pl);outline-offset:3px}#utts p.live::after{animation:none}}
+#form{flex:1;min-width:0;display:flex;gap:8px;align-items:flex-end}
+#text{flex:1;min-width:0;resize:none;font:400 16px/1.45 var(--font);color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:22px;padding:11px 16px;max-height:140px;overflow:auto}
+#go{flex:none;min-height:46px;border:1px solid var(--pl);background:transparent;color:var(--pl);border-radius:99px;padding:0 18px;font-weight:600}
+#mic-note{font-size:13px;color:var(--muted)}
+#mic-note.quiet{visibility:hidden}
+#build{min-height:54px;border:0;border-radius:14px;background:var(--pl);color:var(--pl-ink);font:600 17px/1 var(--font);width:100%;display:flex;align-items:center;justify-content:center;gap:10px}
+#build::after{content:"\2192"}
+
+/* ---------- Screen 2: checklist ---------- */
+.v-list{flex:1;min-height:0;display:grid;grid-template-columns:1fr 340px;gap:20px}
+.board{padding:14px 18px;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+#list-top{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding-bottom:10px;border-bottom:1px solid var(--line);margin-bottom:10px}
+#list-top h1{font:600 22px/1.2 var(--font);letter-spacing:-.01em;margin-right:auto;display:flex;align-items:center;gap:10px}
+#list-top h1 .mark{width:26px;height:26px}
+.progress{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+.prog{display:block;width:140px;height:6px;background:var(--line);border-radius:99px;overflow:hidden}
+.prog span{display:block;height:100%;background:var(--pl);transition:width .2s}
+#list{flex:1;min-height:0;overflow:auto;column-width:230px;column-gap:18px}
+.cat{break-inside:avoid;margin-bottom:12px}
+.cat-h{display:flex;width:100%;align-items:center;gap:6px;background:transparent;border:0;border-bottom:1px solid var(--line);padding:0 0 4px;margin-bottom:2px;font:600 11.5px/1.4 var(--font);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:left}
+.cat-h .cn{margin-left:auto;font-weight:500;letter-spacing:0}
+.cat-h::before{content:"";width:6px;height:6px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(45deg) translateY(-2px);transition:transform .15s}
+.cat.closed .cat-h::before{transform:rotate(-45deg)}
+.cat.closed ul{display:none}
+.cat.alldone .cat-h{color:var(--pl)}
+.cat ul{list-style:none}
+.item{display:flex;align-items:flex-start;gap:9px;padding:5px 0;border-bottom:1px solid color-mix(in srgb,var(--line) 55%,transparent);cursor:pointer}
+.box{flex:none;width:18px;height:18px;margin-top:2px;border:1.5px solid var(--muted);border-radius:5px;background:transparent;display:grid;place-items:center}
+.done .box{background:var(--pl);border-color:var(--pl)}
+.done .box::after{content:"";width:9px;height:5px;border:2px solid var(--pl-ink);border-top:0;border-right:0;transform:translateY(-1px) rotate(-45deg)}
+.ib{flex:1;min-width:0;display:flex;flex-direction:column}
+.nm{font-size:14px;font-weight:500;color:var(--ink)}
+.q{font-weight:600;color:var(--pl)}
+.wear{font:500 10.5px/1 var(--font);font-style:normal;text-transform:uppercase;letter-spacing:.05em;color:var(--warn-line);border:1px solid currentColor;border-radius:99px;padding:2px 6px;margin-left:4px;vertical-align:1px}
+.why{font-size:12.5px;color:var(--muted);line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.item.done{opacity:.5}
+.done .nm{text-decoration:line-through}
+.cut{flex:none;border:0;background:transparent;color:var(--muted);font-size:16px;line-height:1;padding:2px 4px;opacity:0}
+.item:hover .cut,.cut:focus-visible{opacity:1}
+.cut:hover{color:var(--accent)}
+.side{padding:14px 16px;display:flex;flex-direction:column;gap:10px;min-height:0;overflow:auto}
+.side h2{font:600 12px/1.4 var(--font);letter-spacing:.06em;text-transform:uppercase;color:var(--pl)}
+.side .pairs{grid-template-columns:1fr}
+.side .pairs>div{display:grid;grid-template-columns:76px 1fr;gap:10px;align-items:baseline}
+.meter{display:block;height:5px;background:var(--line);border-radius:99px;margin-top:5px;overflow:hidden}
+.meter span{display:block;height:100%;background:var(--pl)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips button,.chip{font:500 12.5px/1.3 var(--font);border:1px solid var(--line);background:transparent;color:var(--ink-2);padding:4px 10px;border-radius:99px}
+.chips button:hover{border-color:var(--pl)}
+#notes{list-style:none;display:flex;flex-direction:column;gap:5px}
+#notes li{font-size:13px;color:var(--muted);line-height:1.4;padding-left:12px;position:relative}
+#notes li::before{content:"";position:absolute;left:0;top:.6em;width:5px;height:5px;border-radius:50%;background:var(--pl)}
+.cmd{margin-top:auto;border-top:1px solid var(--line);padding-top:10px;display:flex;flex-direction:column;gap:6px}
+.cmdrow{display:flex;gap:8px;align-items:center}
+#cmd-mic{flex:none;width:44px;height:44px;border-radius:50%;border:1px solid var(--pl);background:transparent;color:var(--pl);display:grid;place-items:center}
+#cmd-mic.live{background:var(--pl);color:var(--pl-ink);animation:pulse 1.2s ease-in-out infinite}
+#cmd-text{flex:1;min-width:0;font:400 16px/1.4 var(--font);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:99px;padding:9px 14px}
+#cmd-reply{font-size:13px;color:var(--ink-2);min-height:1.2em}
+.cmd-hint{font-size:12px;color:var(--muted)}
+
+footer{border-top:1px solid var(--line);padding:10px 0 14px;font-size:12.5px;color:var(--muted)}
+
+@media (min-width:861px){
+  body{height:100vh;height:100dvh;overflow:hidden}
+}
+@media (min-width:861px) and (max-height:830px){ #notes{display:none} }
+
+/* ---------- Mobile first (iPhone 360-430) ---------- */
+@media (max-width:860px){
+  body{min-height:0;padding-bottom:calc(var(--dock-h,0px) + 8px)}
+  .wrap{padding:0 14px}
+  nav{padding:4px 0}
+  nav .name,.nav-links a{display:inline-flex;align-items:center;min-height:44px}
+  .nav-links{gap:0 18px}
+  #theme,.pill,.chips button,.chip,#editTrip{min-height:44px;padding:8px 14px;font-size:14px}
+  footer a{display:inline-flex;align-items:center;min-height:44px}
+  main{padding-top:10px}
+  .pairs{grid-template-columns:1fr 1fr}
+  .side .pairs>div{grid-template-columns:1fr;gap:0}
+  .sum-h button{min-height:44px}
+  .v-input{min-height:calc(100vh - 20px)}
+  #transcript{min-height:140px;overflow:visible}
+  #utts p{font-size:18px}
+  /* bottom dock in thumb reach (screen 1) */
+  .v-input .dock{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--card);border-top:1px solid var(--line);box-shadow:0 -6px 20px rgba(0,0,0,.1);
+    padding:10px max(14px,env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left))}
+  #text{font-size:17px;min-height:52px;padding:13px 16px}
+  #go{display:none}
+  #mic{width:72px;height:72px}
+  /* screen 2 */
+  .v-list{display:flex;flex-direction:column;gap:12px}
+  .board{overflow:visible;padding:0 14px 12px}
+  #list-top{position:sticky;top:0;z-index:5;background:var(--card);margin:0 -14px 6px;padding:10px 14px;border-radius:10px 10px 0 0}
+  #list-top h1{font-size:21px}
+  .prog{width:110px}
+  #list{overflow:visible;columns:1;column-width:auto}
+  .cat-h{min-height:44px;font-size:13px;padding:0}
+  .item{min-height:52px;align-items:center;padding:6px 0;gap:12px}
+  .box{width:28px;height:28px;margin-top:0;border-radius:7px;border-width:2px}
+  .done .box::after{width:13px;height:7px;border-width:2.5px}
+  .nm{font-size:16px}
+  .why{font-size:13.5px;-webkit-line-clamp:unset;display:block}
+  .cut{opacity:1;width:44px;height:44px;font-size:22px;margin-right:-10px}
+  .side{overflow:visible}
+  .v-list .cmd{position:fixed;left:0;right:0;bottom:0;z-index:20;margin:0;background:var(--card);border-top:1px solid var(--line);
+    padding:8px max(14px,env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left))}
+  .cmd-hint{display:none}
+}
+</style>
+</head>
+<body data-view="input">
+<a class="skip" href="#main">Skip to Packlight</a>
+<div class="topbar">
+<div class="wrap">
+<nav aria-label="Primary">
+  <a class="name" href="https://alexcrowley.dev/">Alex Crowley</a>
+  <span class="nav-links"><a href="https://alexcrowley.dev/#work">Work</a><a href="https://alexcrowley.dev/#about">About</a><a href="https://alexcrowley.dev/#contact">Contact</a></span>
+  <button id="theme" type="button" aria-pressed="false">Dark mode</button>
+</nav>
+</div>
+</div>
+
+<main id="main" class="wrap">
+  <!-- Screen 1: say the trip -->
+  <section class="v-input" id="v-input" aria-label="Describe your trip">
+    <div class="in-head">
+      <div class="brand">
+        <svg class="mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 7.5V6a3 3 0 0 1 6 0v1.5"/><rect x="5" y="7.5" width="14" height="13.5" rx="4"/><path d="M5 12.5h14"/><rect x="9.2" y="14.5" width="5.6" height="3.6" rx="1.4"/></svg>
+        <div><p class="h">Packlight</p><p class="tagline">talk your way to a lighter bag</p></div>
+      </div>
+      <button id="speaker" class="pill" type="button" aria-pressed="false">Voice replies off</button>
     </div>
-    <pre id="debug" hidden></pre>
-    <p id="mic-note" class="mic-note">Tap the mic once and just talk — it keeps listening until you tap it again. Typing works too.</p>
+    <div id="trip-sum" class="card" hidden></div>
+    <div id="missing" role="alert" hidden></div>
+    <div id="transcript" class="card" aria-live="polite">
+      <p class="t-h">What you said</p>
+      <div id="utts"><p class="t-empty">Tap the mic and describe the trip: where, when you leave and get back, laundry, carry-on or checked, plans. Say as much as you like.</p></div>
+      <p id="reply"></p>
+    </div>
+    <div class="dock" id="dock">
+      <button id="build" type="button" hidden>Build the list</button>
+      <div class="inrow">
+        <form id="form" autocomplete="off">
+          <label class="skip" for="text">Describe your trip</label>
+          <textarea id="text" rows="1" enterkeyhint="send" autocapitalize="sentences" placeholder="or type your trip"></textarea>
+          <button id="go" type="submit">Go</button>
+        </form>
+        <button id="mic" type="button" aria-pressed="false" aria-label="Talk: describe your trip">
+          <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="17" x2="12" y2="22"/></svg>
+        </button>
+      </div>
+      <p id="mic-note" class="quiet">Tap the mic to talk. Tap again when you're done.</p>
+    </div>
   </section>
 
-  <div id="tripbar"></div>
-  <section id="stats"></section>
-  <section id="challenges"></section>
-  <section id="checklist"></section>
+  <!-- Screen 2: the checklist -->
+  <section class="v-list" id="v-list" aria-label="Packing checklist" hidden>
+    <div class="board card">
+      <div id="list-top"></div>
+      <div id="list"></div>
+    </div>
+    <aside class="side card" aria-label="Trip summary">
+      <h2>Trip summary</h2>
+      <div id="side-sum"></div>
+      <ul id="notes"></ul>
+      <div class="cmd">
+        <div class="cmdrow">
+          <button id="cmd-mic" type="button" aria-pressed="false" aria-label="Voice command"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="17" x2="12" y2="22"/></svg></button>
+          <form id="cmd-form" autocomplete="off" style="flex:1;display:flex;min-width:0"><label class="skip" for="cmd-text">Command</label><input id="cmd-text" type="text" enterkeyhint="send" placeholder="say or type: packed socks"></form>
+        </div>
+        <p id="cmd-reply" aria-live="polite"></p>
+        <p class="cmd-hint">Say or type: &ldquo;packed socks&rdquo;, &ldquo;cut sleepwear&rdquo;, &ldquo;add sunglasses&rdquo;, &ldquo;what's left&rdquo;.</p>
+      </div>
+    </aside>
+  </section>
 </main>
 
 <footer>
-  <p>Weather by <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> · Voice by the Web Speech API · No account, no keys, no tracking — your trip stays in your browser.</p>
-<p class="build">build 5 · Sep 4, 2026</p>
+  <div class="wrap">Packlight · weather and places from <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>) and <a href="https://www.geonames.org/" target="_blank" rel="noopener">GeoNames</a>. A demo tool: no account, no tracking; your trip stays in this browser.</div>
 </footer>
 
-<script src="js/packing.js?v=5"></script>
-<script src="js/voice.js?v=5"></script>
-<script src="js/app.js?v=5"></script>
+<script src="/engine.js?v=6"></script>
+<script src="/parse.js?v=6"></script>
+<script src="/place.js?v=6"></script>
+<script src="/voice.js?v=6"></script>
+<script src="/app.js?v=6"></script>
+<script>
+(function(){
+  var r=document.documentElement,b=document.getElementById("theme");
+  function sync(){var d=r.dataset.theme==="dark";b.textContent=d?"Light mode":"Dark mode";b.setAttribute("aria-pressed",String(d));}
+  sync();
+  b.addEventListener("click",function(){var t=r.dataset.theme==="dark"?"light":"dark";r.dataset.theme=t;try{localStorage.setItem("packlight-theme",t)}catch(e){}sync();});
+})();
+</script>
 </body>
 </html>
